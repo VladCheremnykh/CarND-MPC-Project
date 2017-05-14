@@ -93,13 +93,31 @@ int main() {
           double v = j[1]["speed"];
 
           /*
-          * TODO: Calculate steeering angle and throttle using MPC.
+          * TODO: Calculate steering angle and throttle using MPC.
           *
           * Both are in between [-1, 1].
           *
           */
-          double steer_value;
-          double throttle_value;
+          // create Eigen vectors from standard vector
+          Eigen::VectorXd ptsxv = Eigen::VectorXd::Map(ptsx.data(), ptsx.size());
+          Eigen::VectorXd ptsyv = Eigen::VectorXd::Map(ptsy.data(), ptsy.size());
+
+          auto coeffs = polyfit(ptsxv, ptsyv, 3);
+
+          // calculate the cross track error
+          double cte = polyeval(coeffs, 0) - py;
+
+          // calculate the orientation error
+          double epsi = -atan(coeffs[1]);
+
+          // create current state vector and solve
+          Eigen::VectorXd state(6);
+          state << px, py, psi, v, cte, epsi;
+          auto x1 = mpc.Solve(state, coeffs);
+
+
+          double steer_value = x1[0];
+          double throttle_value = x1[1];
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;

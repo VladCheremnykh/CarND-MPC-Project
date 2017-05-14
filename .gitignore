@@ -3,3 +3,11 @@ build
 tags
 .editorconfig
 .DS_Store
+
+/Debug
+
+.cproject
+
+.project
+
+/.settings
