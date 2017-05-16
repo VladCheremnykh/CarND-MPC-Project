@@ -145,6 +145,7 @@ int main() {
           double steer_value = x1[0];
           double throttle_value = x1[1];
 
+          //Display the waypoints/reference line
           std::vector<double> wpsx;
           std::vector<double> wpsy;
           wpsx.resize(ptsxv.size());
@@ -152,12 +153,24 @@ int main() {
           Eigen::VectorXd::Map(&wpsx[0], ptsxv.size()) = ptsxv;
           Eigen::VectorXd::Map(&wpsy[0], ptsyv.size()) = ptsyv;
 
+          //Display the MPC predicted trajectory
+          vector<double> mpc_x_vals;
+          vector<double> mpc_y_vals;
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
+
+          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
+           // the points in the simulator are connected by a Yellow line
           msgJson["next_x"] = wpsx;
           msgJson["next_y"] = wpsy;
+
+          //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
+          // the points in the simulator are connected by a Green line
+          msgJson["mpc_x"] = mpc_x_vals;
+          msgJson["mpc_y"] = mpc_y_vals;
+
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
           // Latency
