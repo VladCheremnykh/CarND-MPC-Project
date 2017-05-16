@@ -41,6 +41,18 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   return result;
 }
 
+// create derivative polynomial coefficients
+// using formula from http://www-h.eng.cam.ac.uk/help/languages/C++/1BC++/polynomials.php
+Eigen::VectorXd polyderivative(Eigen::VectorXd coeffs) {
+  Eigen::VectorXd coeffsd;
+  coeffsd.resize(coeffs.size()-1);
+
+  for (int i = 1; i < coeffs.size(); i++) {
+    coeffsd[i-1] = i * coeffs[i];
+  }
+  return coeffsd;
+}
+
 // Fit a polynomial.
 // Adapted from
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
@@ -102,26 +114,50 @@ int main() {
           Eigen::VectorXd ptsxv = Eigen::VectorXd::Map(ptsx.data(), ptsx.size());
           Eigen::VectorXd ptsyv = Eigen::VectorXd::Map(ptsy.data(), ptsy.size());
 
+          // convert to vehicle space
+          for (int i = 0; i < ptsxv.size(); i++) {
+            double x = ptsxv[i];
+            double y = ptsyv[i];
+            ptsxv[i] = x * cos(psi) - y * sin(psi) + px;
+            ptsyv[i] = x * sin(psi) + y * cos(psi) + py;
+          }
+
           auto coeffs = polyfit(ptsxv, ptsyv, 3);
 
           // calculate the cross track error
-          double cte = polyeval(coeffs, 0) - py;
+          double cte = polyeval(coeffs, px) - py;
 
           // calculate the orientation error
-          double epsi = -atan(coeffs[1]);
+          auto coeffsd = polyderivative(coeffs);
+          double fsharpx = polyeval(coeffsd, px);
+
+          double psid = atan(fsharpx); // desired orientation
+          double epsi = psi - psid;
+
+          cout << "coeffs " << coeffs << " cte " << cte << " f'(px) " << fsharpx << " psid " <<psid <<" epsi " << epsi << endl;
+          cout << "coeffsd " << coeffsd <<endl;
 
           // create current state vector and solve
           Eigen::VectorXd state(6);
           state << px, py, psi, v, cte, epsi;
           auto x1 = mpc.Solve(state, coeffs);
 
-
           double steer_value = x1[0];
           double throttle_value = x1[1];
+
+          std::vector<double> wpsx;
+          std::vector<double> wpsy;
+          wpsx.resize(ptsxv.size());
+          wpsy.resize(ptsyv.size());
+          Eigen::VectorXd::Map(&wpsx[0], ptsxv.size()) = ptsxv;
+          Eigen::VectorXd::Map(&wpsy[0], ptsyv.size()) = ptsyv;
+
 
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
+          msgJson["next_x"] = wpsx;
+          msgJson["next_y"] = wpsy;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
           std::cout << msg << std::endl;
           // Latency
