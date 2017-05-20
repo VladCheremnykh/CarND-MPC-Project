@@ -1,8 +1,94 @@
-# CarND-Controls-MPC
+# Model Predictive Controller Project
 Self-Driving Car Engineer Nanodegree Program
 
+[//]: # (Written by Nick Hortovanyi May 20th 2017)
 ---
 
+![Simulator output](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/simulator.png)
+
+## Implementation
+### The Model
+For this project we used a global kinematic model, which is a simplification of a dynamic model that ignores tire forces, gravity and mass.
+
+The state model is represented by the vehicles position, orientation angle (in radians) and velocity.
+![State Model from Course notes](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/03-l-state-03.png)
+
+A cross track error (distance of vehicle from trajectory) and an orientation error (difference of vehicle orientation and trajectory orientation) were also included in the state model.
+
+Two actuators were used, delta - to represent the steering angle and a - for acceleration corresponding to a throttle, with negative values for braking.
+
+The simulator passes via a socket, ptsx & ptsy of six waypoints (5 in front, 1 near the vehicle), the vehicle x,y map position, orientation and speed (mph). 
+
+This data after being transformed into the vehicle map space, with new cross track error and orientation error calculated, is then passed into the MPC (Model Predictive Control) solve routine. It returns, the two new actuator values, with steering and acceleration (i.e. throttle) and the MPC predicted path (plotted in green in the simulator).
+
+Constraint costs were applied to help the optimiser select an optimal update. Emphasis was place on minimising orientation error and actuations, in particular steering (to keep the lines smooth).
+
+```   
+   // Reference State Cost
+    // TODO: Define the cost related the reference state and
+    // any anything you think may be beneficial.
+    // The part of the cost based on the reference state.
+    for (int i = 0; i < N; i++) {
+      fg[0] += CppAD::pow(vars[cte_start + i] - ref_cte, 2);
+      fg[0] += 2 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
+      fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
+    }
+
+    //
+    // Setup Constraints
+    //
+    // NOTE: In this section you'll setup the model constraints.
+    // Minimize the use of actuators.
+    for (int i = 0; i < N - 1; i++) {
+      fg[0] += CppAD::pow(vars[delta_start + i], 2);
+      fg[0] += CppAD::pow(vars[a_start + i], 2);
+    }
+
+    // Minimize the value gap between sequential actuations.
+    for (int i = 0; i < N - 2; i++) {
+      fg[0] += 200 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+      fg[0] += 10 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
+    }
+```
+
+### Timestep Length and Frequency
+The MPC optimiser has two variables to represent the horizon into the future to predict actuator changes. They are determined by N (Number of timesteps) and dt (timestep duration) where T (time) = N * dt.
+
+To help tune these settings, I copied the mpc_to_line project quiz, to a new project mpc_to_waypoint, and modified it to represent the initial state model to be used with the  Udacity simulator. I was able to get good results looking out 3 seconds, with N = 15 and dt = 0.2. The following output are plots of 50 iterations from the initial vehicle state:
+![initial tuning program output](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/Figure_2_and_Figure_1.png) 
+
+It seemed to be tracking quite nicely but speed was very slow.
+
+However what I found, is that a horizon out 3 seconds in the simulator seemed to be too far. The faster the vehicle, the further forward the optimiser was looking. It shortly started to fail and the vehicle would end up in the lake or even worse airborne.
+
+I tried reducing N and increasing dt. Eventually, via trial and error, I found good results where N was 8 to 10 and dt between ~0.08 to ~0.105. I eventually settled on calculating dt based on Time/N (with time set at ~.65 seconds). If I saw the plotted MPC line coming close to the 2nd furthest plotted waypoint at higher speeds, it started to correspond, with the MPC optimiser failing.
+
+The reference speed also played a part. To drive safely around the track, to ensure the project meets requirement, I kept it at 57.5 MPH.
+ 
+### Polynomial Fitting and MPC Preprocessing
+
+An example plot of the track with the first way points, vehicle position and orientation follows:
+![Waypoints plotted with vehicle](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/waypoints_plotted.png) 
+
+To make updating easier and to provide data to be able to draw, the waypoints and the predicted path from the MPC solver, coordinates were transformed into vehicle space. This meant also that the initial position of the vehicle state, for the solver was (0,0) with a corresponding angle orientation of zero. These coordinates were used in the poly fit. It had an added benefit of simplifying, the derivative calculation required for the orientation error.
+
+The following plot is the same waypoints transformed to the vehicle space map, with the arrow representing the orientation of the vehicle:
+![waypoints in vehicle space](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/waypoints%20vehicle%20space.png)
+
+### Model Predictive Control with Latency
+Before sending the result back to the simulator a 100ms latency delay was implemented
+```
+this_thread::sleep_for(chrono::milliseconds(100));
+```
+. This replicated the delay experienced in the vehicle. 
+
+You could see in places where vehicle lagged a little in its turning, but the MPC predicted path correctly described a solution back on track per following image:
+![steering lag](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/steering%20lag.png)
+
+Over all the drive around this simulator track, was smoother and lacked steering wobbles, when compared to using a PID controller.
+
+[//]: # (Written by Nick Hortovanyi May 20th 2017)
+ 
 ## Dependencies
 
 * cmake >= 3.5
