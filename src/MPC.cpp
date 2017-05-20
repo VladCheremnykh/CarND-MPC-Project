@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-double T = .8; // seconds
-size_t N = 10; // number of timesteps into the horizon
+double T = .65; // seconds
+size_t N = 8; // number of timesteps into the horizon
 double dt = T/N; // time interval
 
 // This value assumes the model presented in the classroom is used.
@@ -24,7 +24,7 @@ const double Lf = 2.67;
 
 double ref_cte = 0;
 double ref_epsi = 0;
-double ref_v = 50;
+double ref_v = 60;
 
 // The solver takes all the state variables and actuator
 // variables in a singular vector. Thus, we should to establish
@@ -61,9 +61,11 @@ class FG_eval {
     // TODO: Define the cost related the reference state and
     // any anything you think may be beneficial.
     // The part of the cost based on the reference state.
+
+
     for (int i = 0; i < N; i++) {
       fg[0] += CppAD::pow(vars[cte_start + i] - ref_cte, 2);
-      fg[0] += CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
+      fg[0] += 2 * CppAD::pow(vars[epsi_start + i] - ref_epsi, 2);
       fg[0] += CppAD::pow(vars[v_start + i] - ref_v, 2);
     }
 
@@ -80,7 +82,7 @@ class FG_eval {
     // Minimize the value gap between sequential actuations.
     for (int i = 0; i < N - 2; i++) {
     //   fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
-      fg[0] += 300 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+      fg[0] += 200 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
       fg[0] += 10 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
     }
 
@@ -246,9 +248,9 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // can uncomment 1 of these and see if it makes a difference or not but
   // if you uncomment both the computation time should go up in orders of
   // magnitude.
-  options += "Sparse  true        forward\n";
-//  options += "Sparse  true        reverse\n";
-  // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
+//  options += "Sparse  true        forward\n";
+  options += "Sparse  true        reverse\n";
+//  // NOTE: Currently the solver has a maximum time limit of 0.5 seconds.
   // Change this as you see fit.
   options += "Numeric max_cpu_time          0.5\n";
 
