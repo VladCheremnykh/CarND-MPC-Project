@@ -41,18 +41,6 @@ double polyeval(Eigen::VectorXd coeffs, double x) {
   return result;
 }
 
-// create derivative polynomial coefficients
-// using formula from http://www-h.eng.cam.ac.uk/help/languages/C++/1BC++/polynomials.php
-Eigen::VectorXd polyderivative(Eigen::VectorXd coeffs) {
-  Eigen::VectorXd coeffsd;
-  coeffsd.resize(coeffs.size()-1);
-
-  for (int i = 1; i < coeffs.size(); i++) {
-    coeffsd[i-1] = i * coeffs[i];
-  }
-  return coeffsd;
-}
-
 // Fit a polynomial.
 // Adapted from
 // https://github.com/JuliaMath/Polynomials.jl/blob/master/src/Polynomials.jl#L676-L716
@@ -102,6 +90,7 @@ int main() {
           double px = j[1]["x"];
           double py = j[1]["y"];
           double psi = j[1]["psi"];
+          double psi_unity = j[1]["psi_unity"];
           double v = j[1]["speed"];
 
           /*
@@ -114,51 +103,73 @@ int main() {
           Eigen::VectorXd ptsxv = Eigen::VectorXd::Map(ptsx.data(), ptsx.size());
           Eigen::VectorXd ptsyv = Eigen::VectorXd::Map(ptsy.data(), ptsy.size());
 
+          // create mapcoeffs used for solving in map space
+//          auto mapcoeffs = polyfit(ptsxv, ptsyv, 3);
+
           // convert to vehicle space
           for (int i = 0; i < ptsxv.size(); i++) {
-            double x = ptsxv[i];
-            double y = ptsyv[i];
-            ptsxv[i] = x * cos(psi) - y * sin(psi) + px;
-            ptsyv[i] = x * sin(psi) + y * cos(psi) + py;
+            double x = ptsxv[i] - px;
+            double y = ptsyv[i] - py;
+            ptsxv[i] = x * cos(psi) + y * sin(psi);
+            ptsyv[i] = - x * sin(psi) + y * cos(psi);
           }
 
+          // calculate in vehicle space ie car is 0,0
           auto coeffs = polyfit(ptsxv, ptsyv, 3);
 
           // calculate the cross track error
-          double cte = polyeval(coeffs, px) - py;
+          double cte = -polyeval(coeffs, 0) ;
 
           // calculate the orientation error
-          auto coeffsd = polyderivative(coeffs);
-          double fsharpx = polyeval(coeffsd, px);
-
-          double psid = atan(fsharpx); // desired orientation
-          double epsi = psi - psid;
-
-          cout << "coeffs " << coeffs << " cte " << cte << " f'(px) " << fsharpx << " psid " <<psid <<" epsi " << epsi << endl;
-          cout << "coeffsd " << coeffsd <<endl;
+          double epsi = -atan(coeffs[1]);
+          cout << "cte " << cte <<" epsi " << epsi << endl;
 
           // create current state vector and solve
           Eigen::VectorXd state(6);
-          state << px, py, psi, v, cte, epsi;
-          auto x1 = mpc.Solve(state, coeffs);
+          // vehicle center of world
+          double vx = 0;
+          double vy = 0;
+          double vpsi = 0;
+
+//          state << px, py, psi, v, cte, epsi;
+          state << vx, vy, vpsi, v, cte, epsi;
+          std::vector<double> x1 = mpc.Solve(state, coeffs);
+
 
           double steer_value = x1[0];
           double throttle_value = x1[1];
+
+          double N = x1[2];
+
+          //Display the MPC predicted trajectory
+          std::vector<double> mpc_x_vals;
+          std::vector<double> mpc_y_vals;
+
+          // convert to vehicle space
+//          for (int i = 0; i < N; i++) {
+//            double x = x1[3 + i] - px;
+//            double y = x1[3 + i + N] - py;
+//            mpc_x_vals.push_back(x * cos(psi) + y * sin(psi));
+//            mpc_y_vals.push_back(- x * sin(psi) + y * cos(psi));
+//          }
+          for (int i = 0; i < N-1; i++) {
+            mpc_x_vals.push_back(x1[3 + i]);
+            mpc_y_vals.push_back(x1[3 + i + N]);
+          }
 
           //Display the waypoints/reference line
           std::vector<double> wpsx;
           std::vector<double> wpsy;
           wpsx.resize(ptsxv.size());
           wpsy.resize(ptsyv.size());
-          Eigen::VectorXd::Map(&wpsx[0], ptsxv.size()) = ptsxv;
-          Eigen::VectorXd::Map(&wpsy[0], ptsyv.size()) = ptsyv;
 
-          //Display the MPC predicted trajectory
-          vector<double> mpc_x_vals;
-          vector<double> mpc_y_vals;
+          for (int i = 0; i < ptsxv.size(); i++) {
+            wpsx[i] = ptsxv[i];
+            wpsy[i] = ptsyv[i];
+          }
 
           json msgJson;
-          msgJson["steering_angle"] = steer_value;
+          msgJson["steering_angle"] = -steer_value;
           msgJson["throttle"] = throttle_value;
 
           //.. add (x,y) points to list here, points are in reference to the vehicle's coordinate system
