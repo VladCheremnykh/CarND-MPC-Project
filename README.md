@@ -2,6 +2,7 @@
 Self-Driving Car Engineer Nanodegree Program
 
 [//]: # (Written by Nick Hortovanyi May 20th 2017)
+
 ---
 ![Simulator output](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/simulator.png)
 ## Implementation
