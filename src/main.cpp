@@ -114,6 +114,7 @@ int main() {
             ptsyv[i] = - x * sin(psi) + y * cos(psi);
           }
 
+
           // calculate in vehicle space ie car is 0,0
           auto coeffs = polyfit(ptsxv, ptsyv, 3);
 
@@ -127,14 +128,13 @@ int main() {
           // create current state vector and solve
           Eigen::VectorXd state(6);
           // vehicle center of world
-          double vx = 0;
+          double vx = 0 + v * .100; // move forward the projected distance to cover 100 ms of latency
           double vy = 0;
           double vpsi = 0;
 
 //          state << px, py, psi, v, cte, epsi;
           state << vx, vy, vpsi, v, cte, epsi;
           std::vector<double> x1 = mpc.Solve(state, coeffs);
-
 
           double steer_value = x1[0];
           double throttle_value = x1[1];

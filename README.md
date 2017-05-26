@@ -2,11 +2,8 @@
 Self-Driving Car Engineer Nanodegree Program
 
 [//]: # (Written by Nick Hortovanyi May 20th 2017)
-
 ---
-
 ![Simulator output](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/simulator.png)
-
 ## Implementation
 ### The Model
 For this project we used a global kinematic model, which is a simplification of a dynamic model that ignores tire forces, gravity and mass.
@@ -22,7 +19,7 @@ The simulator passes via a socket, ptsx & ptsy of six waypoints (5 in front, 1 n
 
 This data after being transformed into the vehicle map space, with new cross track error and orientation error calculated, is then passed into the MPC (Model Predictive Control) solve routine. It returns, the two new actuator values, with steering and acceleration (i.e. throttle) and the MPC predicted path (plotted in green in the simulator).
 
-Constraint costs were applied to help the optimiser select an optimal update. Emphasis was place on minimising orientation error and actuations, in particular steering (to keep the lines smooth).
+Constraint costs were applied to help the optimiser select an optimal update. Emphasis was placed on minimising orientation error and actuations, in particular steering (to keep the lines smooth).
 
 ```   
    // Reference State Cost
@@ -47,10 +44,11 @@ Constraint costs were applied to help the optimiser select an optimal update. Em
 
     // Minimize the value gap between sequential actuations.
     for (int i = 0; i < N - 2; i++) {
-      fg[0] += 200 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+      fg[0] += 2000 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
       fg[0] += 10 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
     }
 ```
+
 
 ### Timestep Length and Frequency
 The MPC optimiser has two variables to represent the horizon into the future to predict actuator changes. They are determined by N (Number of timesteps) and dt (timestep duration) where T (time) = N * dt.
@@ -62,29 +60,36 @@ It seemed to be tracking quite nicely but speed was very slow.
 
 However what I found, is that a horizon out 3 seconds in the simulator seemed to be too far. The faster the vehicle, the further forward the optimiser was looking. It shortly started to fail and the vehicle would end up in the lake or even worse airborne.
 
-I tried reducing N and increasing dt. Eventually, via trial and error, I found good results where N was 8 to 10 and dt between ~0.08 to ~0.105. I eventually settled on calculating dt based on Time/N (with time set at ~.65 seconds). If I saw the plotted MPC line coming close to the 2nd furthest plotted waypoint at higher speeds, it started to correspond, with the MPC optimiser failing.
+I tried reducing N and increasing dt. Eventually, via trial and error, I found good results where N was 8 to 10 and dt between ~0.08 to ~0.105. I eventually settled on calculating dt based on Time/N (with time set at ~.6 seconds and N on 9). If I saw the plotted MPC line coming close to the 2nd furthest plotted waypoint at higher speeds, it started to correspond, with the MPC optimiser failing.
 
-The reference speed also played a part. To drive safely around the track, to ensure the project meets requirement, I kept it at 57.5 MPH.
+The reference speed also played a part. To drive safely around the track, to ensure the project meets requirement, I kept it at 60 MPH.
  
 ### Polynomial Fitting and MPC Preprocessing
 
 An example plot of the track with the first way points, vehicle position and orientation follows:
 ![Waypoints plotted with vehicle](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/waypoints_plotted.png) 
 
-To make updating easier and to provide data to be able to draw, the waypoints and the predicted path from the MPC solver, coordinates were transformed into vehicle space. This meant also that the initial position of the vehicle state, for the solver was (0,0) with a corresponding angle orientation of zero. These coordinates were used in the poly fit. It had an added benefit of simplifying, the derivative calculation required for the orientation error.
+To make updating easier and to provide data to be able to draw, the waypoints and the predicted path from the MPC solver, coordinates were transformed into vehicle space. This meant also that the initial position of the vehicle state, for the solver was (0 + velocity * 100 ms of latency,0), which included a projection of distance travelled to cover latency, with a corresponding angle orientation of zero. These coordinates were used in the poly fit. It had an added benefit of simplifying, the derivative calculation required for the orientation error.
 
 The following plot is the same waypoints transformed to the vehicle space map, with the arrow representing the orientation of the vehicle:
 ![waypoints in vehicle space](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/waypoints%20vehicle%20space.png)
 
 ### Model Predictive Control with Latency
-Before sending the result back to the simulator a 100ms latency delay was implemented
+Before sending the result back to the simulator a 100ms latency delay was implemented.
 ```
 this_thread::sleep_for(chrono::milliseconds(100));
 ```
-. This replicated the delay experienced in the vehicle. 
+This replicated the actuation delay that would be experienced in a real-world vehicle. 
 
-You could see in places where vehicle lagged a little in its turning, but the MPC predicted path correctly described a solution back on track per following image:
+I experimented with trying to understand if the ratio of dt (time interval) to latency in seconds, being near 1 (i.e. the time interval was close to the latency value), had an impact on the ability of the MPC algorithm to handle latency. Anecdotal evidence supported that; but in reality ratio values of < 1 (for this project, I had (.6/9)/.100 = .66667) were the reality to ensure the optimiser was able to find a solution. 
+  
+As described in the previous section, the vehicle position was projected forward, the distance it would travel, to cover 100ms of latency.  
+
+However before I implemented the forward projection for latency, you could see in places where the vehicle lagged a little in its turning. The MPC, however predicted the path correctly back onto the centre line of the track per following image:
 ![steering lag](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/steering%20lag.png)
+
+After I implemented the latency projection calculation, the vehicle was able to stay closer to center, more readily per this image:
+![latency projected](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/steering_with_distance_projected_for_latency.png)
 
 Over all the drive around this simulator track, was smoother and lacked steering wobbles, when compared to using a PID controller.
 
