@@ -128,7 +128,8 @@ int main() {
           // create current state vector and solve
           Eigen::VectorXd state(6);
           // vehicle center of world
-          double vx = 0 + v * .100; // move forward the projected distance to cover 100 ms of latency
+          double vkph = v * 1.609344;
+          double vx = 0 + vkph * 100 / (1000 * 60 * 60); // move forward the projected distance to cover 100 ms of latency
           double vy = 0;
           double vpsi = 0;
 
@@ -136,7 +137,7 @@ int main() {
           state << vx, vy, vpsi, v, cte, epsi;
           std::vector<double> x1 = mpc.Solve(state, coeffs);
 
-          double steer_value = x1[0];
+          double steer_value = x1[0]/ deg2rad(25) ; // normalise - simulator has steering input [-1,1]
           double throttle_value = x1[1];
 
           double N = x1[2];

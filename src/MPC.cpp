@@ -6,8 +6,8 @@
 using CppAD::AD;
 
 // TODO: Set the timestep length and duration
-double T = .6; // seconds
-size_t N = 9; // number of timesteps into the horizon
+double T = .65; // seconds
+size_t N = 8; // number of timesteps into the horizon
 double dt = T/N; // time interval
 
 // This value assumes the model presented in the classroom is used.
@@ -82,7 +82,7 @@ class FG_eval {
     // Minimize the value gap between sequential actuations.
     for (int i = 0; i < N - 2; i++) {
     //   fg[0] += CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
-      fg[0] += 2000 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+      fg[0] += 20000 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
       fg[0] += 10 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
     }
 
@@ -198,8 +198,11 @@ vector<double> MPC::Solve(Eigen::VectorXd state, Eigen::VectorXd coeffs) {
   // degrees (values in radians).
   // NOTE: Feel free to change this to something else.
   for (int i = delta_start; i < a_start; i++) {
-    vars_lowerbound[i] = -0.436332;
-    vars_upperbound[i] = 0.436332;
+//    vars_lowerbound[i] = -0.436332;
+//    vars_upperbound[i] = 0.436332;
+    // simulator using [-1, 1] where 1 is 25 degrees
+    vars_lowerbound[i] = -1.0;
+    vars_upperbound[i] = 1.0;
   }
 
   // Acceleration/decceleration upper and lower limits.
