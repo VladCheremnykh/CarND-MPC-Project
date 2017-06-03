@@ -1,4 +1,4 @@
-# Model Predictive Controller Project
+# # Model Predictive Controller Project
 Self-Driving Car Engineer Nanodegree Program
 
 [//]: # (Written by Nick Hortovanyi May 20th 2017)
@@ -14,7 +14,7 @@ The state model is represented by the vehicles position, orientation angle (in r
 
 A cross track error (distance of vehicle from trajectory) and an orientation error (difference of vehicle orientation and trajectory orientation) were also included in the state model.
 
-Two actuators were used, delta - to represent the steering angle and a - for acceleration corresponding to a throttle, with negative values for braking.
+Two actuators were used, delta - to represent the steering angle  (normalised to [-1,1]) and a - for acceleration corresponding to a throttle, with negative values for braking.
 
 The simulator passes via a socket, ptsx & ptsy of six waypoints (5 in front, 1 near the vehicle), the vehicle x,y map position, orientation and speed (mph). 
 
@@ -45,7 +45,7 @@ Constraint costs were applied to help the optimiser select an optimal update. Em
 
     // Minimize the value gap between sequential actuations.
     for (int i = 0; i < N - 2; i++) {
-      fg[0] += 2000 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
+      fg[0] += 20000 * CppAD::pow(vars[delta_start + i + 1] - vars[delta_start + i], 2);
       fg[0] += 10 * CppAD::pow(vars[a_start + i + 1] - vars[a_start + i], 2);
     }
 ```
@@ -61,7 +61,7 @@ It seemed to be tracking quite nicely but speed was very slow.
 
 However what I found, is that a horizon out 3 seconds in the simulator seemed to be too far. The faster the vehicle, the further forward the optimiser was looking. It shortly started to fail and the vehicle would end up in the lake or even worse airborne.
 
-I tried reducing N and increasing dt. Eventually, via trial and error, I found good results where N was 8 to 10 and dt between ~0.08 to ~0.105. I eventually settled on calculating dt based on Time/N (with time set at ~.6 seconds and N on 9). If I saw the plotted MPC line coming close to the 2nd furthest plotted waypoint at higher speeds, it started to correspond, with the MPC optimiser failing.
+I tried reducing N and increasing dt. Eventually, via trial and error, I found good results where N was 8 to 10 and dt between ~0.08 to ~0.105. I eventually settled on calculating dt based on Time/N (with time set at ~.65 seconds and N on 8). If I saw the plotted MPC line coming close to the 2nd furthest plotted waypoint at higher speeds, it started to correspond, with the MPC optimiser failing.
 
 The reference speed also played a part. To drive safely around the track, to ensure the project meets requirement, I kept it at 60 MPH.
  
@@ -70,7 +70,7 @@ The reference speed also played a part. To drive safely around the track, to ens
 An example plot of the track with the first way points, vehicle position and orientation follows:
 ![Waypoints plotted with vehicle](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/waypoints_plotted.png) 
 
-To make updating easier and to provide data to be able to draw, the waypoints and the predicted path from the MPC solver, coordinates were transformed into vehicle space. This meant also that the initial position of the vehicle state, for the solver was (0 + velocity * 100 ms of latency,0), which included a projection of distance travelled to cover latency, with a corresponding angle orientation of zero. These coordinates were used in the poly fit. It had an added benefit of simplifying, the derivative calculation required for the orientation error.
+To make updating easier and to provide data to be able to draw, the waypoints and the predicted path from the MPC solver, coordinates were transformed into vehicle space. This meant also that the initial position of the vehicle state, for the solver was (0 + velocity in KPH * 100 ms of latency,0), which included a projection of distance travelled to cover latency, with a corresponding angle orientation of zero. These coordinates were used in the poly fit. It had an added benefit of simplifying, the derivative calculation required for the orientation error.
 
 The following plot is the same waypoints transformed to the vehicle space map, with the arrow representing the orientation of the vehicle:
 ![waypoints in vehicle space](https://raw.githubusercontent.com/hortovanyi/CarND-MPC-Project/master/output/waypoints%20vehicle%20space.png)
@@ -82,7 +82,7 @@ this_thread::sleep_for(chrono::milliseconds(100));
 ```
 This replicated the actuation delay that would be experienced in a real-world vehicle. 
 
-I experimented with trying to understand if the ratio of dt (time interval) to latency in seconds, being near 1 (i.e. the time interval was close to the latency value), had an impact on the ability of the MPC algorithm to handle latency. Anecdotal evidence supported that; but in reality ratio values of < 1 (for this project, I had (.6/9)/.100 = .66667) were the reality to ensure the optimiser was able to find a solution. 
+I experimented with trying to understand if the ratio of dt (time interval) to latency in seconds, being near 1 (i.e. the time interval was close to the latency value), had an impact on the ability of the MPC algorithm to handle latency. Anecdotal evidence supported that; but in reality ratio values of < 1 (for this project, I had (.65/8)/.100 = .0.8125) were the reality to ensure the optimiser was able to find a solution. 
   
 As described in the previous section, the vehicle position was projected forward, the distance it would travel, to cover 100ms of latency.  
 
